@@ -7,7 +7,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 $TARGET_DIR = "C:\StarSticks"
-$REPO_URL = "https://github.com/joeydee1986/StarSticks.git"
+$REPO_URL = "https://github.com/BeltaKoda/StarSticks.git"
 
 # Check if directory exists
 if (Test-Path $TARGET_DIR) {

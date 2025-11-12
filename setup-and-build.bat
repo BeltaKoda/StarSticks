@@ -9,7 +9,7 @@ echo.
 
 REM Set the target directory
 set TARGET_DIR=C:\StarSticks
-set REPO_URL=https://github.com/joeydee1986/StarSticks.git
+set REPO_URL=https://github.com/BeltaKoda/StarSticks.git
 
 REM Check if directory exists
 if exist "%TARGET_DIR%" (
