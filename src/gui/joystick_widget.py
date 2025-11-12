@@ -4,7 +4,7 @@ Displays joystick buttons and their bindings in a visual layout
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QScrollArea, QFrame
+    QLabel, QPushButton, QScrollArea, QFrame, QProgressBar
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -99,12 +99,14 @@ class JoystickButton(QPushButton):
 class JoystickVisualization(QWidget):
     """Widget that displays a visual representation of a joystick with bindings"""
 
-    def __init__(self, joystick_name: str, joystick_id: int, num_buttons: int, parent=None):
+    def __init__(self, joystick_name: str, joystick_id: int, num_buttons: int, num_axes: int = 0, parent=None):
         super().__init__(parent)
         self.joystick_name = joystick_name
         self.joystick_id = joystick_id
         self.num_buttons = num_buttons
+        self.num_axes = num_axes
         self.button_widgets = {}
+        self.axis_widgets = {}
         self.joystick = None
         self.init_ui()
         self.init_joystick_polling()
@@ -130,7 +132,7 @@ class JoystickVisualization(QWidget):
         layout.addWidget(header)
 
         # Info label
-        info = QLabel(f"Device ID: {self.joystick_id} | {self.num_buttons} Buttons")
+        info = QLabel(f"Device ID: {self.joystick_id} | {self.num_buttons} Buttons | {self.num_axes} Axes")
         info.setStyleSheet("color: #888888; padding: 5px;")
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(info)
@@ -159,6 +161,61 @@ class JoystickVisualization(QWidget):
 
         scroll.setWidget(button_container)
         layout.addWidget(scroll)
+
+        # Axes section
+        if self.num_axes > 0:
+            axes_label = QLabel("Axes")
+            axes_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px; color: #ffffff;")
+            layout.addWidget(axes_label)
+
+            # Create axis displays
+            axes_container = QWidget()
+            axes_layout = QVBoxLayout(axes_container)
+            axes_layout.setSpacing(5)
+
+            axis_names = ["X", "Y", "Z", "RX", "RY", "RZ", "Throttle", "Rudder"]
+            for i in range(self.num_axes):
+                axis_widget = QWidget()
+                axis_h_layout = QHBoxLayout(axis_widget)
+                axis_h_layout.setContentsMargins(0, 0, 0, 0)
+
+                # Axis label
+                axis_name = axis_names[i] if i < len(axis_names) else f"Axis {i}"
+                axis_label = QLabel(f"{axis_name}:")
+                axis_label.setMinimumWidth(80)
+                axis_label.setStyleSheet("color: #cccccc;")
+                axis_h_layout.addWidget(axis_label)
+
+                # Progress bar to show axis value (-1 to 1)
+                axis_bar = QProgressBar()
+                axis_bar.setMinimum(-100)
+                axis_bar.setMaximum(100)
+                axis_bar.setValue(0)
+                axis_bar.setTextVisible(True)
+                axis_bar.setFormat("%v%")
+                axis_bar.setStyleSheet("""
+                    QProgressBar {
+                        border: 1px solid #555555;
+                        border-radius: 3px;
+                        text-align: center;
+                        background-color: #2a2a2a;
+                    }
+                    QProgressBar::chunk {
+                        background-color: #2196F3;
+                    }
+                """)
+                axis_h_layout.addWidget(axis_bar)
+
+                # Value label
+                value_label = QLabel("0.00")
+                value_label.setMinimumWidth(60)
+                value_label.setStyleSheet("color: #cccccc; font-family: monospace;")
+                axis_h_layout.addWidget(value_label)
+
+                self.axis_widgets[i] = {'bar': axis_bar, 'label': value_label}
+                axes_layout.addWidget(axis_widget)
+
+            layout.addWidget(axes_container)
 
     def set_button_binding(self, button_number: int, action: str):
         """
@@ -206,27 +263,30 @@ class JoystickVisualization(QWidget):
     def init_joystick_polling(self):
         """Initialize joystick polling for real-time button press detection"""
         try:
-            # Initialize pygame joystick
-            pygame.joystick.quit()
-            pygame.joystick.init()
+            # Make sure pygame joystick is initialized
+            if not pygame.joystick.get_init():
+                pygame.joystick.init()
 
-            # Get the joystick by ID
+            # Get the joystick by ID (don't re-init pygame, just get the joystick)
             if self.joystick_id < pygame.joystick.get_count():
                 self.joystick = pygame.joystick.Joystick(self.joystick_id)
-                self.joystick.init()
+                if not self.joystick.get_init():
+                    self.joystick.init()
+
+                print(f"Polling initialized for joystick {self.joystick_id}: {self.joystick.get_name()}")
 
                 # Create timer to poll joystick state (30Hz)
                 self.poll_timer = QTimer(self)
                 self.poll_timer.timeout.connect(self.poll_joystick)
                 self.poll_timer.start(33)  # ~30 FPS
             else:
-                print(f"Warning: Joystick ID {self.joystick_id} not found for polling")
+                print(f"Warning: Joystick ID {self.joystick_id} not found (count: {pygame.joystick.get_count()})")
 
         except Exception as e:
-            print(f"Error initializing joystick polling: {e}")
+            print(f"Error initializing joystick polling for ID {self.joystick_id}: {e}")
 
     def poll_joystick(self):
-        """Poll the joystick and update button states"""
+        """Poll the joystick and update button and axis states"""
         if not self.joystick:
             return
 
@@ -242,6 +302,19 @@ class JoystickVisualization(QWidget):
                 if pygame_button_index < self.joystick.get_numbuttons():
                     is_pressed = self.joystick.get_button(pygame_button_index)
                     self.button_widgets[button_num].set_pressed(bool(is_pressed))
+
+            # Check each axis value
+            for axis_index in self.axis_widgets.keys():
+                if axis_index < self.joystick.get_numaxes():
+                    # Get axis value (range: -1.0 to 1.0)
+                    axis_value = self.joystick.get_axis(axis_index)
+
+                    # Update progress bar (convert to -100 to 100)
+                    bar_value = int(axis_value * 100)
+                    self.axis_widgets[axis_index]['bar'].setValue(bar_value)
+
+                    # Update value label
+                    self.axis_widgets[axis_index]['label'].setText(f"{axis_value:+.2f}")
 
         except Exception as e:
             print(f"Error polling joystick: {e}")
@@ -297,7 +370,8 @@ class DualJoystickView(QWidget):
             viz = JoystickVisualization(
                 joystick_name=joy['name'],
                 joystick_id=joy['id'],
-                num_buttons=joy['buttons']
+                num_buttons=joy['buttons'],
+                num_axes=joy.get('axes', 0)
             )
 
             # Store reference based on left/right in name
