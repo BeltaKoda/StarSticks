@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from src.core.joystick_detector import JoystickDetector
 from src.core.binding_parser import BindingParser
 from src.gui.joystick_widget import DualJoystickView
+from src.core.action_categories import ActionMode, get_mode_icon
 
 
 class MainWindow(QMainWindow):
@@ -19,6 +20,8 @@ class MainWindow(QMainWindow):
         self.joystick_detector = JoystickDetector()
         self.binding_parser = BindingParser()
         self.detected_joysticks = []  # Store detected joysticks
+        self.current_bindings = []  # Store current bindings for filtering
+        self.current_mode = ActionMode.ALL  # Current filter mode
         self.init_ui()
 
     def init_ui(self):
@@ -53,6 +56,24 @@ class MainWindow(QMainWindow):
         instance_layout.addStretch()
         instance_group.setLayout(instance_layout)
         main_layout.addWidget(instance_group)
+
+        # Mode Filter Section
+        mode_group = QGroupBox("Display Mode")
+        mode_layout = QHBoxLayout()
+        mode_label = QLabel("Filter by Mode:")
+        self.mode_combo = QComboBox()
+
+        # Add all modes to combo box
+        for mode in ActionMode:
+            icon = get_mode_icon(mode)
+            self.mode_combo.addItem(f"{icon} {mode.value}", mode)
+
+        self.mode_combo.currentIndexChanged.connect(self.on_mode_changed)
+        mode_layout.addWidget(mode_label)
+        mode_layout.addWidget(self.mode_combo)
+        mode_layout.addStretch()
+        mode_group.setLayout(mode_layout)
+        main_layout.addWidget(mode_group)
 
         # Joystick Detection Section
         joystick_group = QGroupBox("Detected Joysticks")
@@ -139,10 +160,48 @@ class MainWindow(QMainWindow):
             num_bindings = len(joystick_bindings)
 
             if num_bindings > 0:
-                # Update visualization with bindings
-                self.viz_widget.update_bindings(joystick_bindings)
+                # Store bindings for filtering
+                self.current_bindings = joystick_bindings
+
+                # Apply current mode filter
+                self.apply_mode_filter()
+
                 self.statusBar().showMessage(f"Loaded {num_bindings} joystick binding(s) from {instance}")
             else:
+                self.current_bindings = []
                 self.statusBar().showMessage(f"No joystick bindings found in {instance} profile")
         else:
+            self.current_bindings = []
             self.statusBar().showMessage(f"No binding files found for {instance}")
+
+    def on_mode_changed(self, index):
+        """Handle mode selection change"""
+        self.current_mode = self.mode_combo.itemData(index)
+        self.apply_mode_filter()
+
+    def apply_mode_filter(self):
+        """Filter and display bindings based on selected mode"""
+        from src.core.action_categories import categorize_action
+
+        if not self.current_bindings:
+            return
+
+        # Filter bindings by mode
+        if self.current_mode == ActionMode.ALL:
+            filtered_bindings = self.current_bindings
+        else:
+            filtered_bindings = [
+                binding for binding in self.current_bindings
+                if categorize_action(binding.get('action', '')) == self.current_mode
+            ]
+
+        # Update visualization
+        self.viz_widget.update_bindings(filtered_bindings)
+
+        # Update status bar
+        total = len(self.current_bindings)
+        shown = len(filtered_bindings)
+        if self.current_mode == ActionMode.ALL:
+            self.statusBar().showMessage(f"Showing all {total} binding(s)")
+        else:
+            self.statusBar().showMessage(f"Showing {shown} of {total} binding(s) for {self.current_mode.value}")
