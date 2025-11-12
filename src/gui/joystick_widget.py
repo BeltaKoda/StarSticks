@@ -10,6 +10,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from typing import Dict, List, Optional
 import pygame
+from src.models.joystick_models import identify_joystick, JoystickModel
 
 
 class JoystickButton(QPushButton):
@@ -108,6 +109,10 @@ class JoystickVisualization(QWidget):
         self.button_widgets = {}
         self.axis_widgets = {}
         self.joystick = None
+
+        # Identify the joystick model
+        self.model = identify_joystick(joystick_name, num_buttons, num_axes)
+
         self.init_ui()
         self.init_joystick_polling()
 
@@ -130,6 +135,19 @@ class JoystickVisualization(QWidget):
         """)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
+
+        # Detected model label
+        if self.model:
+            model_text = f"✓ Detected: {self.model.name}"
+            model_color = "#4CAF50"
+        else:
+            model_text = "⚠ Unknown Model - Manual configuration may be needed"
+            model_color = "#FF9800"
+
+        model_label = QLabel(model_text)
+        model_label.setStyleSheet(f"color: {model_color}; padding: 5px; font-weight: bold;")
+        model_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(model_label)
 
         # Info label
         info = QLabel(f"Device ID: {self.joystick_id} | {self.num_buttons} Buttons | {self.num_axes} Axes")
