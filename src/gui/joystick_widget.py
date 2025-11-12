@@ -373,6 +373,7 @@ class DualJoystickView(QWidget):
         super().__init__(parent)
         self.left_stick = None
         self.right_stick = None
+        self.stick_visualizations = {}  # Map pygame ID to visualization widget
         self.init_ui()
 
     def init_ui(self):
@@ -405,6 +406,11 @@ class DualJoystickView(QWidget):
             self.layout.addWidget(self.placeholder)
             return
 
+        # Clear previous mappings
+        self.stick_visualizations = {}
+        self.left_stick = None
+        self.right_stick = None
+
         # Create visualization for each joystick
         for joy in joysticks:
             viz = JoystickVisualization(
@@ -414,7 +420,10 @@ class DualJoystickView(QWidget):
                 num_axes=joy.get('axes', 0)
             )
 
-            # Store reference based on left/right in name
+            # Store by pygame joystick ID
+            self.stick_visualizations[joy['id']] = viz
+
+            # Also store reference based on left/right in name (for display order)
             name_lower = joy['name'].lower()
             if 'left' in name_lower:
                 self.left_stick = viz
@@ -422,6 +431,8 @@ class DualJoystickView(QWidget):
                 self.right_stick = viz
 
             self.layout.addWidget(viz)
+
+        print(f"Mapped joysticks: {list(self.stick_visualizations.keys())}")
 
     def update_bindings(self, bindings: List[Dict]):
         """
@@ -431,10 +442,8 @@ class DualJoystickView(QWidget):
             bindings: List of binding dictionaries from binding parser
         """
         # Clear all existing bindings first
-        if self.left_stick:
-            self.left_stick.clear_all_bindings()
-        if self.right_stick:
-            self.right_stick.clear_all_bindings()
+        for viz in self.stick_visualizations.values():
+            viz.clear_all_bindings()
 
         # Apply new bindings
         for binding in bindings:
@@ -443,29 +452,39 @@ class DualJoystickView(QWidget):
 
             # Parse the input string to get device and button/axis
             parsed = self.parse_input_string(input_str)
-            device_id = parsed.get('device')
+            sc_js_number = parsed.get('sc_js_number')  # SC js number (1-based)
             button_num = parsed.get('button')
             axis_name = parsed.get('axis')
 
+            if sc_js_number is None:
+                continue
+
+            # Map SC js number to pygame ID
+            # SC uses 1-based (js1, js2), pygame uses 0-based (ID 0, 1)
+            # IMPORTANT: SC js numbers may not match pygame order!
+            # For now, we assume js1=ID0, js2=ID1, but this may need user configuration
+            pygame_id = sc_js_number - 1  # Convert to 0-based
+
+            # Get the visualization for this pygame ID
+            viz = self.stick_visualizations.get(pygame_id)
+            if not viz:
+                print(f"Warning: SC js{sc_js_number} (pygame ID {pygame_id}) not found in visualizations")
+                continue
+
             # Handle button bindings
-            if device_id is not None and button_num is not None:
-                # Map device ID to stick
-                if device_id == 0 and self.left_stick:
-                    self.left_stick.set_button_binding(button_num, action)
-                elif device_id == 1 and self.right_stick:
-                    self.right_stick.set_button_binding(button_num, action)
+            if button_num is not None:
+                viz.set_button_binding(button_num, action)
+                print(f"Mapped: SC js{sc_js_number} button{button_num} → pygame ID {pygame_id} ({viz.joystick_name}) = {action[:30]}")
 
             # Handle axis bindings
-            elif device_id is not None and axis_name is not None:
+            elif axis_name is not None:
                 # Map axis names to indices
                 axis_map = {'x': 0, 'y': 1, 'z': 2, 'rotx': 3, 'roty': 4, 'rotz': 5}
                 axis_index = axis_map.get(axis_name)
 
                 if axis_index is not None:
-                    if device_id == 0 and self.left_stick:
-                        self.left_stick.set_axis_binding(axis_index, action)
-                    elif device_id == 1 and self.right_stick:
-                        self.right_stick.set_axis_binding(axis_index, action)
+                    viz.set_axis_binding(axis_index, action)
+                    print(f"Mapped: SC js{sc_js_number} {axis_name} → pygame ID {pygame_id} ({viz.joystick_name}) = {action[:30]}")
 
     def parse_input_string(self, input_str: str) -> Dict:
         """
@@ -475,9 +494,9 @@ class DualJoystickView(QWidget):
             input_str: Input string like "js1_button10" or "js1_x"
 
         Returns:
-            Dictionary with device, button, and/or axis info
+            Dictionary with sc_js_number (1-based), button, and/or axis info
         """
-        result = {'device': None, 'button': None, 'axis': None}
+        result = {'sc_js_number': None, 'button': None, 'axis': None}
 
         if not input_str:
             return result
@@ -491,8 +510,8 @@ class DualJoystickView(QWidget):
                 device_end = device_start
                 while device_end < len(input_lower) and input_lower[device_end].isdigit():
                     device_end += 1
-                # SC uses 1-based, convert to 0-based
-                result['device'] = int(input_lower[device_start:device_end]) - 1
+                # Keep SC's 1-based numbering (js1 = 1, js2 = 2)
+                result['sc_js_number'] = int(input_lower[device_start:device_end])
             except (ValueError, IndexError):
                 pass
 
