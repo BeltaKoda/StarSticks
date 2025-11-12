@@ -6,9 +6,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QScrollArea, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from typing import Dict, List, Optional
+import pygame
 
 
 class JoystickButton(QPushButton):
@@ -18,6 +19,7 @@ class JoystickButton(QPushButton):
         super().__init__(parent)
         self.button_number = button_number
         self.binding_action = None
+        self.is_pressed = False
         self.setMinimumSize(100, 80)
         self.setMaximumSize(120, 100)
         self.update_display()
@@ -32,9 +34,31 @@ class JoystickButton(QPushButton):
         self.binding_action = None
         self.update_display()
 
+    def set_pressed(self, pressed: bool):
+        """Set the pressed state of this button"""
+        if self.is_pressed != pressed:
+            self.is_pressed = pressed
+            self.update_display()
+
     def update_display(self):
         """Update the button display with current binding info"""
-        if self.binding_action:
+        # Pressed state overrides everything with bright color
+        if self.is_pressed:
+            if self.binding_action:
+                text = f"BTN {self.button_number}\n\n{self.binding_action}"
+            else:
+                text = f"BTN {self.button_number}\n\nUnbound"
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    border: 3px solid #F57C00;
+                    border-radius: 5px;
+                    padding: 5px;
+                    font-weight: bold;
+                }
+            """)
+        elif self.binding_action:
             # Show button number and binding
             text = f"BTN {self.button_number}\n\n{self.binding_action}"
             self.setStyleSheet("""
@@ -81,7 +105,9 @@ class JoystickVisualization(QWidget):
         self.joystick_id = joystick_id
         self.num_buttons = num_buttons
         self.button_widgets = {}
+        self.joystick = None
         self.init_ui()
+        self.init_joystick_polling()
 
     def init_ui(self):
         """Initialize the user interface"""
@@ -176,6 +202,49 @@ class JoystickVisualization(QWidget):
             action = action[:27] + "..."
 
         return action
+
+    def init_joystick_polling(self):
+        """Initialize joystick polling for real-time button press detection"""
+        try:
+            # Initialize pygame joystick
+            pygame.joystick.quit()
+            pygame.joystick.init()
+
+            # Get the joystick by ID
+            if self.joystick_id < pygame.joystick.get_count():
+                self.joystick = pygame.joystick.Joystick(self.joystick_id)
+                self.joystick.init()
+
+                # Create timer to poll joystick state (30Hz)
+                self.poll_timer = QTimer(self)
+                self.poll_timer.timeout.connect(self.poll_joystick)
+                self.poll_timer.start(33)  # ~30 FPS
+            else:
+                print(f"Warning: Joystick ID {self.joystick_id} not found for polling")
+
+        except Exception as e:
+            print(f"Error initializing joystick polling: {e}")
+
+    def poll_joystick(self):
+        """Poll the joystick and update button states"""
+        if not self.joystick:
+            return
+
+        try:
+            # Process pygame events (required for joystick state updates)
+            pygame.event.pump()
+
+            # Check each button state
+            for button_num in self.button_widgets.keys():
+                # pygame buttons are 0-indexed, our display is 1-indexed
+                pygame_button_index = button_num - 1
+
+                if pygame_button_index < self.joystick.get_numbuttons():
+                    is_pressed = self.joystick.get_button(pygame_button_index)
+                    self.button_widgets[button_num].set_pressed(bool(is_pressed))
+
+        except Exception as e:
+            print(f"Error polling joystick: {e}")
 
     def on_button_clicked(self, button_number: int):
         """Handle button click event"""
