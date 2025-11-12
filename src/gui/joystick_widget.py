@@ -450,6 +450,22 @@ class DualJoystickView(QWidget):
 
         print(f"\n=== LOADING {len(bindings)} BINDINGS ===")
 
+        # Build mapping from SC js numbers to available pygame IDs
+        # Pygame IDs may not be sequential (e.g., 0, 2 if 1 is blacklisted)
+        available_pygame_ids = sorted(self.stick_visualizations.keys())
+
+        print(f"Available pygame IDs: {available_pygame_ids}")
+
+        # Create mapping: SC js1 → first available ID, js2 → second available ID, etc.
+        sc_to_pygame_map = {}
+        for i, pygame_id in enumerate(available_pygame_ids):
+            sc_js_number = i + 1  # SC uses 1-based numbering
+            sc_to_pygame_map[sc_js_number] = pygame_id
+            viz_name = self.stick_visualizations[pygame_id].joystick_name
+            print(f"Mapping: SC js{sc_js_number} → Pygame ID {pygame_id} ({viz_name})")
+
+        print()
+
         # Track bindings per device for summary
         bindings_per_device = {}
 
@@ -467,16 +483,13 @@ class DualJoystickView(QWidget):
             if sc_js_number is None:
                 continue
 
-            # Map SC js number to pygame ID
-            # SC uses 1-based (js1, js2), pygame uses 0-based (ID 0, 1)
-            # IMPORTANT: SC js numbers may not match pygame order!
-            # For now, we assume js1=ID0, js2=ID1, but this may need user configuration
-            pygame_id = sc_js_number - 1  # Convert to 0-based
+            # Map SC js number to pygame ID using our mapping
+            pygame_id = sc_to_pygame_map.get(sc_js_number)
 
             # Get the visualization for this pygame ID
             viz = self.stick_visualizations.get(pygame_id)
             if not viz:
-                print(f"⚠ Warning: SC js{sc_js_number} (pygame ID {pygame_id}) not found in visualizations")
+                print(f"⚠ Warning: SC js{sc_js_number} not mapped (no pygame device available)")
                 continue
 
             # Track this binding
