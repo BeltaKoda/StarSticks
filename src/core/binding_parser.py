@@ -32,6 +32,27 @@ class BindingParser:
                 return Path(base_path)
         return None
 
+    def detect_installed_instances(self) -> List[str]:
+        """
+        Detect which SC instances are actually installed (LIVE, PTU, HOTFIX)
+
+        Returns:
+            List of installed instance names
+        """
+        installed = []
+        sc_path = self.find_sc_installation()
+
+        if not sc_path:
+            return installed
+
+        # Check for each possible instance
+        for instance in ["LIVE", "PTU", "HOTFIX"]:
+            instance_path = sc_path / instance
+            if instance_path.exists():
+                installed.append(instance)
+
+        return installed
+
     def get_bindings_path(self, instance: str = "LIVE") -> Optional[Path]:
         """
         Get the path to the bindings directory for a specific instance

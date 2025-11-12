@@ -40,11 +40,13 @@ class MainWindow(QMainWindow):
         instance_layout = QHBoxLayout()
         instance_label = QLabel("Select Instance:")
         self.instance_combo = QComboBox()
-        self.instance_combo.addItems(["LIVE", "PTU", "HOTFIX"])
+        self.rescan_instances_btn = QPushButton("Rescan Instances")
+        self.rescan_instances_btn.clicked.connect(self.scan_sc_instances)
         self.refresh_bindings_btn = QPushButton("Load Bindings")
         self.refresh_bindings_btn.clicked.connect(self.load_bindings)
         instance_layout.addWidget(instance_label)
         instance_layout.addWidget(self.instance_combo)
+        instance_layout.addWidget(self.rescan_instances_btn)
         instance_layout.addWidget(self.refresh_bindings_btn)
         instance_layout.addStretch()
         instance_group.setLayout(instance_layout)
@@ -76,8 +78,27 @@ class MainWindow(QMainWindow):
         # Status Bar
         self.statusBar().showMessage("Ready")
 
-        # Auto-detect joysticks on startup
+        # Auto-detect SC instances and joysticks on startup
+        self.scan_sc_instances()
         self.detect_joysticks()
+
+    def scan_sc_instances(self):
+        """Scan for installed Star Citizen instances and populate dropdown"""
+        self.statusBar().showMessage("Scanning for Star Citizen installations...")
+
+        # Get list of installed instances
+        installed_instances = self.binding_parser.detect_installed_instances()
+
+        # Clear and repopulate combo box
+        self.instance_combo.clear()
+
+        if installed_instances:
+            self.instance_combo.addItems(installed_instances)
+            self.statusBar().showMessage(f"Found {len(installed_instances)} SC instance(s): {', '.join(installed_instances)}")
+        else:
+            # No instances found, add default options
+            self.instance_combo.addItems(["LIVE", "PTU", "HOTFIX"])
+            self.statusBar().showMessage("No Star Citizen installation found. Please check your installation path.")
 
     def detect_joysticks(self):
         """Detect connected joysticks and display them"""

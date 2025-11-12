@@ -9,15 +9,42 @@ from typing import List, Dict
 class JoystickDetector:
     """Detects and manages connected joystick devices"""
 
+    # Blacklist of device names that should be filtered out
+    DEVICE_BLACKLIST = [
+        'keychron',
+        'keyboard',
+        'mouse',
+        'touchpad',
+        'trackpad',
+        'pen',
+        'stylus',
+    ]
+
     def __init__(self):
         """Initialize the joystick detector"""
         # Initialize pygame joystick module
         pygame.init()
         pygame.joystick.init()
 
-    def detect(self) -> List[Dict]:
+    def is_blacklisted(self, device_name: str) -> bool:
+        """
+        Check if a device is blacklisted (not a real joystick)
+
+        Args:
+            device_name: The name of the device
+
+        Returns:
+            True if the device is blacklisted
+        """
+        name_lower = device_name.lower()
+        return any(blacklisted in name_lower for blacklisted in self.DEVICE_BLACKLIST)
+
+    def detect(self, filter_blacklisted: bool = True) -> List[Dict]:
         """
         Detect all connected joysticks
+
+        Args:
+            filter_blacklisted: If True, filter out blacklisted devices
 
         Returns:
             List of dictionaries containing joystick information
@@ -35,9 +62,16 @@ class JoystickDetector:
                 joy = pygame.joystick.Joystick(i)
                 joy.init()
 
+                device_name = joy.get_name()
+
+                # Skip blacklisted devices if filtering is enabled
+                if filter_blacklisted and self.is_blacklisted(device_name):
+                    joy.quit()
+                    continue
+
                 joystick_info = {
                     'id': i,
-                    'name': joy.get_name(),
+                    'name': device_name,
                     'guid': joy.get_guid(),
                     'buttons': joy.get_numbuttons(),
                     'axes': joy.get_numaxes(),
