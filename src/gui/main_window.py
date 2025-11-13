@@ -3,9 +3,9 @@ Main application window for StarSticks
 """
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QComboBox, QTextEdit, QGroupBox
+    QLabel, QPushButton, QComboBox, QTextEdit, QGroupBox, QTabWidget
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from src.core.joystick_detector import JoystickDetector
 from src.core.binding_parser import BindingParser
 from src.gui.joystick_widget import DualJoystickView
@@ -28,120 +28,201 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         """Initialize the user interface"""
         self.setWindowTitle("StarSticks - Star Citizen Joystick Binding Visualizer")
-        self.setMinimumSize(1024, 768)
+        self.setMinimumSize(1400, 900)
+
+        # Set modern stylesheet
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #1e1e1e;
+            }
+            QGroupBox {
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QPushButton {
+                background-color: #0e639c;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1177bb;
+            }
+            QPushButton:pressed {
+                background-color: #0d5689;
+            }
+            QComboBox {
+                background-color: #2d2d2d;
+                color: white;
+                border: 1px solid #3d3d3d;
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QComboBox:drop-down {
+                border: none;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2d2d2d;
+                color: white;
+                selection-background-color: #0e639c;
+            }
+            QTextEdit {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 3px;
+            }
+            QTabWidget::pane {
+                border: 1px solid #3d3d3d;
+                background-color: #252525;
+            }
+            QTabBar::tab {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                padding: 8px 20px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: #0e639c;
+            }
+            QTabBar::tab:hover {
+                background-color: #3d3d3d;
+            }
+        """)
 
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(15, 15, 15, 15)
 
-        # Title
+        # Title Bar
+        title_widget = QWidget()
+        title_layout = QHBoxLayout(title_widget)
+        title_layout.setContentsMargins(0, 0, 0, 10)
+
         title_label = QLabel("StarSticks")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; padding: 10px;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title_label)
+        title_label.setStyleSheet("font-size: 28px; font-weight: bold; color: #0e639c;")
+        title_layout.addWidget(title_label)
 
-        # Star Citizen Instance Selection
-        instance_group = QGroupBox("Star Citizen Instance")
-        instance_layout = QHBoxLayout()
-        instance_label = QLabel("Select Instance:")
+        title_layout.addStretch()
+
+        subtitle_label = QLabel("Star Citizen Joystick Binding Visualizer")
+        subtitle_label.setStyleSheet("font-size: 14px; color: #888888;")
+        title_layout.addWidget(subtitle_label)
+
+        main_layout.addWidget(title_widget)
+
+        # Control Bar - horizontal layout
+        control_bar = QWidget()
+        control_layout = QHBoxLayout(control_bar)
+        control_layout.setContentsMargins(0, 0, 0, 0)
+        control_layout.setSpacing(15)
+
+        # SC Instance controls
+        instance_label = QLabel("SC Instance:")
+        instance_label.setStyleSheet("font-weight: bold;")
+        control_layout.addWidget(instance_label)
+
         self.instance_combo = QComboBox()
-        self.rescan_instances_btn = QPushButton("Rescan Instances")
+        self.instance_combo.setMinimumWidth(100)
+        control_layout.addWidget(self.instance_combo)
+
+        self.rescan_instances_btn = QPushButton("Rescan")
         self.rescan_instances_btn.clicked.connect(self.scan_sc_instances)
+        control_layout.addWidget(self.rescan_instances_btn)
+
         self.refresh_bindings_btn = QPushButton("Load Bindings")
         self.refresh_bindings_btn.clicked.connect(self.load_bindings)
-        instance_layout.addWidget(instance_label)
-        instance_layout.addWidget(self.instance_combo)
-        instance_layout.addWidget(self.rescan_instances_btn)
-        instance_layout.addWidget(self.refresh_bindings_btn)
-        instance_layout.addStretch()
-        instance_group.setLayout(instance_layout)
-        main_layout.addWidget(instance_group)
+        control_layout.addWidget(self.refresh_bindings_btn)
 
-        # Mode Filter Section
-        mode_group = QGroupBox("Display Mode")
-        mode_layout = QHBoxLayout()
-        mode_label = QLabel("Filter by Mode:")
+        # Separator
+        separator1 = QLabel("|")
+        separator1.setStyleSheet("color: #555555; font-size: 20px;")
+        control_layout.addWidget(separator1)
+
+        # Mode filter
+        mode_label = QLabel("Mode:")
+        mode_label.setStyleSheet("font-weight: bold;")
+        control_layout.addWidget(mode_label)
+
         self.mode_combo = QComboBox()
-
-        # Add all modes to combo box
+        self.mode_combo.setMinimumWidth(180)
         for mode in ActionMode:
             icon = get_mode_icon(mode)
             self.mode_combo.addItem(f"{icon} {mode.value}", mode)
-
         self.mode_combo.currentIndexChanged.connect(self.on_mode_changed)
-        mode_layout.addWidget(mode_label)
-        mode_layout.addWidget(self.mode_combo)
-        mode_layout.addStretch()
-        mode_group.setLayout(mode_layout)
-        main_layout.addWidget(mode_group)
+        control_layout.addWidget(self.mode_combo)
 
-        # Joystick Detection Section
-        joystick_group = QGroupBox("Detected Joysticks")
-        joystick_layout = QVBoxLayout()
-        self.joystick_list = QTextEdit()
-        self.joystick_list.setReadOnly(True)
-        self.joystick_list.setMaximumHeight(150)
+        # Separator
+        separator2 = QLabel("|")
+        separator2.setStyleSheet("color: #555555; font-size: 20px;")
+        control_layout.addWidget(separator2)
 
-        joystick_layout.addWidget(self.joystick_list)
-
-        # Detect button
+        # Joystick controls
         self.detect_btn = QPushButton("Detect Joysticks")
         self.detect_btn.clicked.connect(self.detect_joysticks)
-        joystick_layout.addWidget(self.detect_btn)
+        control_layout.addWidget(self.detect_btn)
 
-        # Mapping swap section
-        swap_group = QWidget()
-        swap_layout = QVBoxLayout(swap_group)
-        swap_layout.setContentsMargins(0, 10, 0, 0)
-
-        swap_info = QLabel("⚠ Bindings on wrong stick?")
-        swap_info.setStyleSheet("font-weight: bold; color: #FF9800;")
-        swap_layout.addWidget(swap_info)
-
-        swap_help = QLabel("Click below if SC js1 bindings appear on LEFT stick instead of RIGHT\n(or vice versa)")
-        swap_help.setStyleSheet("font-size: 10px; color: #888888;")
-        swap_layout.addWidget(swap_help)
-
-        self.swap_btn = QPushButton("🔄 Swap SC js1 ↔ js2 Mapping")
+        self.swap_btn = QPushButton("🔄 Swap L/R Mapping")
         self.swap_btn.clicked.connect(self.swap_joysticks)
-        self.swap_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                font-weight: bold;
-                padding: 8px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        swap_layout.addWidget(self.swap_btn)
+        control_layout.addWidget(self.swap_btn)
+
+        control_layout.addStretch()
+
+        main_layout.addWidget(control_bar)
+
+        # Status bar for joystick info and mapping status
+        status_widget = QWidget()
+        status_layout = QHBoxLayout(status_widget)
+        status_layout.setContentsMargins(0, 5, 0, 5)
+
+        joystick_status_label = QLabel("Joysticks:")
+        joystick_status_label.setStyleSheet("font-weight: bold;")
+        status_layout.addWidget(joystick_status_label)
+
+        self.joystick_status = QLabel("Not detected")
+        self.joystick_status.setStyleSheet("color: #888888;")
+        status_layout.addWidget(self.joystick_status)
+
+        status_layout.addStretch()
 
         self.mapping_status = QLabel()
-        self.mapping_status.setStyleSheet("font-size: 10px; color: #4CAF50; font-style: italic;")
-        swap_layout.addWidget(self.mapping_status)
+        self.mapping_status.setStyleSheet("color: #4CAF50; font-style: italic;")
+        status_layout.addWidget(self.mapping_status)
 
-        joystick_layout.addWidget(swap_group)
-        joystick_group.setLayout(joystick_layout)
-        main_layout.addWidget(joystick_group)
+        main_layout.addWidget(status_widget)
 
-        # Visualization Area - Button Grid
-        viz_group = QGroupBox("Button Grid View")
-        viz_layout = QVBoxLayout()
-        self.viz_widget = DualJoystickView()
-        viz_layout.addWidget(self.viz_widget)
-        viz_group.setLayout(viz_layout)
-        main_layout.addWidget(viz_group)
+        # Tabs for different visualization modes
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
 
-        # Visual Diagram Area
-        visual_group = QGroupBox("Visual Diagram View")
-        visual_layout = QVBoxLayout()
+        # Tab 1: Visual Diagram
         self.visual_widget = DualVisualJoystickView()
-        visual_layout.addWidget(self.visual_widget)
-        visual_group.setLayout(visual_layout)
-        main_layout.addWidget(visual_group)
+        self.tabs.addTab(self.visual_widget, "📊 Visual Diagram")
+
+        # Tab 2: Button Grid
+        self.viz_widget = DualJoystickView()
+        self.tabs.addTab(self.viz_widget, "🔲 Button Grid")
+
+        main_layout.addWidget(self.tabs)
 
         # Status Bar
         self.statusBar().showMessage("Ready")
@@ -177,24 +258,24 @@ class MainWindow(QMainWindow):
         self.detected_joysticks = joysticks
 
         if joysticks:
-            output = f"Found {len(joysticks)} joystick(s):\n\n"
-            for idx, joy in enumerate(joysticks):
-                output += f"[{idx}] {joy['name']}\n"
-                output += f"    Buttons: {joy['buttons']}\n"
-                output += f"    Axes: {joy['axes']}\n"
-                output += f"    Hats: {joy['hats']}\n\n"
-            self.joystick_list.setText(output)
+            # Update status label
+            joy_names = [f"{joy['name']} (ID {joy['id']})" for joy in joysticks]
+            self.joystick_status.setText(" | ".join(joy_names))
+            self.joystick_status.setStyleSheet("color: #4CAF50;")
+
             self.statusBar().showMessage(f"Detected {len(joysticks)} joystick(s)")
 
             # Update visualizations
             self.viz_widget.set_joysticks(joysticks)
             self.visual_widget.set_joysticks(joysticks)
         else:
-            self.joystick_list.setText("No joysticks detected.\n\nPlease ensure your joysticks are connected.")
+            self.joystick_status.setText("Not detected")
+            self.joystick_status.setStyleSheet("color: #FF5555;")
             self.statusBar().showMessage("No joysticks detected")
 
-            # Clear visualization
+            # Clear visualizations
             self.viz_widget.set_joysticks([])
+            self.visual_widget.set_joysticks([])
 
     def load_bindings(self):
         """Load Star Citizen bindings from the selected instance"""
@@ -233,10 +314,26 @@ class MainWindow(QMainWindow):
 
         # Update status label
         if self.viz_widget.mapping_swapped:
-            self.mapping_status.setText("✓ Mapping SWAPPED: SC js1→RIGHT, js2→LEFT")
+            self.mapping_status.setText("⚡ Mapping SWAPPED: SC js1→RIGHT, js2→LEFT")
+            self.swap_btn.setText("🔄 Swap L/R Mapping (SWAPPED)")
+            self.swap_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #F57C00;
+                }
+            """)
             self.statusBar().showMessage("Joystick mapping swapped - SC js1 and js2 reversed")
         else:
-            self.mapping_status.setText("✓ Mapping NORMAL: SC js1→LEFT, js2→RIGHT")
+            self.mapping_status.setText("")
+            self.swap_btn.setText("🔄 Swap L/R Mapping")
+            self.swap_btn.setStyleSheet("")  # Reset to default
             self.statusBar().showMessage("Joystick mapping reset to normal")
 
         # Reload bindings with new mapping
