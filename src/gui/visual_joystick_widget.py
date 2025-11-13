@@ -198,8 +198,16 @@ class VisualJoystickDiagram(QWidget):
 
         painter.end()
 
-        # Update the label
-        self.image_label.setPixmap(pixmap)
+        # Scale down to reasonable display size (original is 11000x6160)
+        # Scale to width of 1200px while maintaining aspect ratio
+        display_width = 1200
+        scaled_pixmap = pixmap.scaledToWidth(
+            display_width,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        # Update the label with scaled pixmap
+        self.image_label.setPixmap(scaled_pixmap)
 
 
 class DualVisualJoystickView(QWidget):
