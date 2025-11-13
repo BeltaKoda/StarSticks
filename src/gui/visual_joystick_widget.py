@@ -4,11 +4,14 @@ Displays joystick images with binding overlays
 """
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QPainter, QFont, QColor, QPen
+from PyQt6.QtGui import QPixmap, QPainter, QFont, QColor, QPen, QImageReader
 from typing import Dict, List
 import pygame
 import sys
 import os
+
+# Increase Qt's image allocation limit to 512MB (default is 256MB)
+QImageReader.setAllocationLimit(512)
 
 
 def get_resource_path(relative_path):
